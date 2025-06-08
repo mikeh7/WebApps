@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mortgage Payoff Calculator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" xintegrity="sha512-BNaRQnYJYiPSqHHDb58B0yaPfCu+Wgds8Gp/gU33kqBtgNS4tSPHuGibyoeqMV/TJlSKda6FXzoEyYGjTe+vXA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" xintegrity="sha512-qZvrmS2ekKPF2mSznTQsxqPgnpkI4DNTlrdUmTzrDgektczlKNRRhy5X5AAOnx5S09ydFYWWNSfcEqDTTHgtNA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom scrollbar for webkit browsers */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        /* Ensure chart is responsive */
+        #mortgageChartCanvasContainer {
+            position: relative;
+            margin: auto;
+            height: 60vh; /* Default height */
+            width: 100%; /* Default width */
+            max-width: 900px; /* Max width for larger screens */
+        }
+        @media (max-width: 768px) {
+            #mortgageChartCanvasContainer {
+                height: 50vh; /* Adjust height for smaller screens */
+            }
+        }
+        /* Styling for disabled button */
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-slate-900 to-slate-700 text-gray-100 min-h-screen flex flex-col items-center justify-center p-4 selection:bg-indigo-500 selection:text-white">
+
+    <div id="appContainer" class="bg-slate-800 shadow-2xl rounded-xl p-6 md:p-10 w-full max-w-4xl">
+        <header class="mb-8 text-center">
+            <h1 id="pdfExportTitle" class="text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-pink-500">Mortgage Payoff Calculator</h1>
+            <p class="text-slate-400 mt-2">See how quickly you can become mortgage-free!</p>
+        </header>
+
+        <!-- Input Form -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div class="bg-slate-700 p-6 rounded-lg shadow-lg">
+                <h2 class="text-xl font-semibold mb-4 text-indigo-300">Mortgage Details</h2>
+                <div>
+                    <label for="balance" class="block text-sm font-medium text-slate-300">Remaining Balance</label>
+                    <input type="text" id="balance" name="balance" placeholder="e.g., £150,000 or $150,000" class="mt-1 block w-full bg-slate-600 border-slate-500 text-gray-100 rounded-md shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50 p-3">
+                </div>
+                <div class="mt-4">
+                    <label for="interestRate" class="block text-sm font-medium text-slate-300">Annual Interest Rate (%)</label>
+                    <input type="text" id="interestRate" name="interestRate" placeholder="e.g., 3.5%" class="mt-1 block w-full bg-slate-600 border-slate-500 text-gray-100 rounded-md shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50 p-3">
+                </div>
+            </div>
+
+            <div class="bg-slate-700 p-6 rounded-lg shadow-lg">
+                 <h2 class="text-xl font-semibold mb-4 text-indigo-300">Repayment Plan</h2>
+                <div>
+                    <label for="monthlyPayment" class="block text-sm font-medium text-slate-300">Current Monthly Payment</label>
+                    <input type="text" id="monthlyPayment" name="monthlyPayment" placeholder="e.g., £800 or $800" class="mt-1 block w-full bg-slate-600 border-slate-500 text-gray-100 rounded-md shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50 p-3">
+                </div>
+                <div class="mt-4">
+                    <label for="overpayment" class="block text-sm font-medium text-slate-300">Optional Monthly Overpayment</label>
+                    <input type="text" id="overpayment" name="overpayment" placeholder="e.g., £100 or $100 (optional)" class="mt-1 block w-full bg-slate-600 border-slate-500 text-gray-100 rounded-md shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50 p-3">
+                </div>
+            </div>
+        </div>
+
+        <div class="flex flex-col sm:flex-row justify-center items-center gap-4 mb-8">
+            <button id="calculateBtn" class="w-full sm:w-auto py-3 px-8 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transform hover:scale-105 transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-opacity-75">
+                Calculate Payoff
+            </button>
+            <button id="downloadPdfBtn" class="w-full sm:w-auto py-3 px-8 bg-gradient-to-r from-green-500 to-teal-600 hover:from-green-600 hover:to-teal-700 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transform hover:scale-105 transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-opacity-75" disabled>
+                Download as PDF
+            </button>
+        </div>
+
+        <!-- Results Area -->
+        <div id="resultsArea" class="mt-6 hidden space-y-6">
+            <div id="errorDisplay" class="mb-4 p-4 text-red-300 bg-red-900 bg-opacity-50 border border-red-700 rounded-md hidden"></div>
+             <div id="pdfErrorDisplay" class="mb-4 p-4 text-yellow-300 bg-yellow-900 bg-opacity-50 border border-yellow-700 rounded-md hidden"></div>
+
+
+            <div id="standardResults" class="p-6 bg-slate-700 border border-slate-600 rounded-lg shadow-md hidden">
+                <h3 class="text-xl font-semibold text-indigo-300 mb-3">Standard Repayment</h3>
+                <p class="text-slate-300">Payoff Time: <span id="stdPayoffTime" class="font-medium text-indigo-400"></span></p>
+                <p class="text-slate-300">Total Interest Paid: <span id="stdTotalInterest" class="font-medium text-indigo-400"></span></p>
+                <p class="text-slate-300">Total Amount Paid: <span id="stdTotalPaid" class="font-medium text-indigo-400"></span></p>
+            </div>
+
+            <div id="overpaymentResults" class="p-6 bg-slate-700 border border-sky-600 rounded-lg shadow-md hidden">
+                <h3 class="text-xl font-semibold text-sky-300 mb-3">With Overpayment</h3>
+                <p class="text-slate-300">Payoff Time: <span id="ovpPayoffTime" class="font-medium text-sky-400"></span></p>
+                <p class="text-slate-300">Total Interest Paid: <span id="ovpTotalInterest" class="font-medium text-sky-400"></span></p>
+                <p class="text-slate-300">Total Amount Paid: <span id="ovpTotalPaid" class="font-medium text-sky-400"></span></p>
+            </div>
+
+            <div id="savingsResults" class="p-6 bg-slate-700 border border-emerald-600 rounded-lg shadow-md hidden">
+                <h3 class="text-xl font-semibold text-emerald-300 mb-3">Savings with Overpayment</h3>
+                <p class="text-slate-300">Paid off <span id="timeSaved" class="font-medium text-emerald-400"></span> sooner.</p>
+                <p class="text-slate-300">Interest Saved: <span id="interestSaved" class="font-medium text-emerald-400"></span></p>
+            </div>
+        </div>
+
+        <!-- Chart Area -->
+        <div id="chartContainer" class="mt-10 bg-slate-700 p-4 md:p-6 rounded-lg shadow-lg hidden">
+             <h2 id="chartTitle" class="text-xl font-semibold text-center mb-4 text-indigo-300">Mortgage Balance Over Time</h2>
+            <div id="mortgageChartCanvasContainer">
+                <canvas id="mortgageChartCanvas"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const balanceInput = document.getElementById('balance');
+        const interestRateInput = document.getElementById('interestRate');
+        const monthlyPaymentInput = document.getElementById('monthlyPayment');
+        const overpaymentInput = document.getElementById('overpayment');
+        const calculateBtn = document.getElementById('calculateBtn');
+        const downloadPdfBtn = document.getElementById('downloadPdfBtn');
+
+        const resultsArea = document.getElementById('resultsArea');
+        const errorDisplay = document.getElementById('errorDisplay');
+        const pdfErrorDisplay = document.getElementById('pdfErrorDisplay');
+        const standardResultsDiv = document.getElementById('standardResults');
+        const overpaymentResultsDiv = document.getElementById('overpaymentResults');
+        const savingsResultsDiv = document.getElementById('savingsResults');
+        const chartContainer = document.getElementById('chartContainer');
+        const chartTitleEl = document.getElementById('chartTitle');
+        const appContainer = document.getElementById('appContainer'); 
+
+        const stdPayoffTimeEl = document.getElementById('stdPayoffTime');
+        const stdTotalInterestEl = document.getElementById('stdTotalInterest');
+        const stdTotalPaidEl = document.getElementById('stdTotalPaid');
+
+        const ovpPayoffTimeEl = document.getElementById('ovpPayoffTime');
+        const ovpTotalInterestEl = document.getElementById('ovpTotalInterest');
+        const ovpTotalPaidEl = document.getElementById('ovpTotalPaid');
+
+        const timeSavedEl = document.getElementById('timeSaved');
+        const interestSavedEl = document.getElementById('interestSaved');
+
+        const chartCanvas = document.getElementById('mortgageChartCanvas');
+        let mortgageChart = null;
+        let currentCurrencySymbol = '£'; // Default currency symbol
+
+        /**
+         * Sanitizes a numeric string by removing commas, currency symbols, and percentage signs.
+         * Also detects the currency symbol from the input string.
+         * @param {string} value - The string value to sanitize.
+         * @param {boolean} isBalanceField - True if this is the main balance field to detect currency from.
+         * @returns {{sanitizedValue: string, detectedSymbol: string|null}}
+         */
+        function sanitizeAndDetectCurrency(value, isBalanceField = false) {
+            if (typeof value !== 'string') {
+                value = String(value); 
+            }
+            
+            let detectedSymbol = null;
+            if (isBalanceField) {
+                if (value.includes('£')) detectedSymbol = '£';
+                else if (value.includes('$')) detectedSymbol = '$';
+                else if (value.includes('€')) detectedSymbol = '€';
+            }
+            
+            const sanitizedValue = value.replace(/[£$€,%]/g, '');
+            return { sanitizedValue, detectedSymbol };
+        }
+
+
+        /**
+         * Calculates mortgage payoff details.
+         * @param {number} principal - The initial loan balance.
+         * @param {number} annualInterestRate - The annual interest rate (e.g., 3.5 for 3.5%).
+         * @param {number} baseMonthlyPayment - The standard monthly payment.
+         * @param {number} monthlyOverpayment - The additional monthly overpayment.
+         * @returns {object} - Object containing payoff details or an error message.
+         */
+        function calculateMortgageDetails(principal, annualInterestRate, baseMonthlyPayment, monthlyOverpayment = 0) {
+            if (principal <= 0) { 
+                return { months: 0, totalInterestPaid: 0, balanceHistory: [0], totalPaid: 0, error: null };
+            }
+            if (annualInterestRate < 0) {
+                 return { error: "Annual interest rate must be non-negative." };
+            }
+            if (baseMonthlyPayment <= 0 && principal > 0) { 
+                 return { error: "Monthly payment must be positive if there is a balance." };
+            }
+
+            const monthlyInterestRate = annualInterestRate / 100 / 12;
+            let currentBalance = principal;
+            let months = 0;
+            let totalInterestPaid = 0;
+            const balanceHistory = [principal]; 
+            const actualMonthlyPayment = baseMonthlyPayment + monthlyOverpayment;
+
+            if (monthlyInterestRate > 0) {
+                const firstMonthInterest = principal * monthlyInterestRate;
+                if (actualMonthlyPayment <= firstMonthInterest && principal > 0) {
+                    return { error: "Monthly payment is too low to cover the interest. The mortgage balance will grow or never be paid off." };
+                }
+            } else if (actualMonthlyPayment <= 0 && principal > 0) { 
+                 return { error: "Monthly payment must be greater than zero if there is a balance and no interest."};
+            }
+
+            while (currentBalance > 0) {
+                if (months >= 12 * 100) { 
+                    return { error: "Calculation exceeds 100 years. Please check your inputs, payment might be too low." };
+                }
+
+                const interestForMonth = currentBalance * monthlyInterestRate;
+                
+                if (currentBalance + interestForMonth <= actualMonthlyPayment) {
+                    totalInterestPaid += interestForMonth;
+                    currentBalance = 0; 
+                } else {
+                    totalInterestPaid += interestForMonth;
+                    currentBalance += interestForMonth; 
+                    currentBalance -= actualMonthlyPayment; 
+                }
+                
+                balanceHistory.push(Math.max(0, currentBalance)); 
+                months++;
+
+                if (currentBalance <= 0) {
+                    break; 
+                }
+            }
+
+            return {
+                months,
+                totalInterestPaid,
+                balanceHistory,
+                totalPaid: principal + totalInterestPaid,
+                error: null
+            };
+        }
+
+        /**
+         * Formats total months into years and months string.
+         * @param {number} totalMonths - The total number of months.
+         * @returns {string} - Formatted string (e.g., "5 years, 3 months").
+         */
+        function formatMonthsToYearsMonths(totalMonths) {
+            const { sanitizedValue: initialBalanceStr } = sanitizeAndDetectCurrency(balanceInput.value);
+            const initialBalance = parseFloat(initialBalanceStr);
+
+            if (totalMonths === 0 && initialBalance === 0) return "Already paid off";
+            if (totalMonths === 0) return "0 months"; 
+            if (totalMonths < 0) return "N/A";
+
+            const years = Math.floor(totalMonths / 12);
+            const months = totalMonths % 12;
+            let result = "";
+
+            if (years > 0) {
+                result += `${years} year${years > 1 ? 's' : ''}`;
+            }
+            if (months > 0) {
+                if (years > 0) result += ", ";
+                result += `${months} month${months > 1 ? 's' : ''}`;
+            }
+            return result || (totalMonths > 0 ? `${totalMonths} month${totalMonths > 1 ? 's' : ''}` : "Instantly paid off");
+        }
+
+
+        /**
+         * Formats a number as currency using the globally detected symbol.
+         * @param {number} amount - The amount to format.
+         * @returns {string} - Formatted currency string (e.g., "£1,234.56").
+         */
+        function formatCurrency(amount) {
+            if (typeof amount !== 'number' || isNaN(amount)) return `${currentCurrencySymbol}0.00`;
+            return `${currentCurrencySymbol}${amount.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,')}`;
+        }
+
+        /**
+         * Updates the chart with new data.
+         * @param {object} stdData - Standard repayment scenario data.
+         * @param {object} ovpData - Overpayment scenario data (optional).
+         */
+        function updateChart(stdData, ovpData) {
+            if (mortgageChart) {
+                mortgageChart.destroy();
+            }
+
+            const datasets = [];
+            let maxMonths = 0;
+
+            if (stdData && !stdData.error && stdData.balanceHistory) {
+                datasets.push({
+                    label: 'Balance (Standard)',
+                    data: stdData.balanceHistory,
+                    borderColor: 'rgb(236, 72, 153)', 
+                    backgroundColor: 'rgba(236, 72, 153, 0.1)',
+                    fill: true,
+                    tension: 0.1,
+                    pointRadius: stdData.months < 60 ? 3 : 0, 
+                    pointHoverRadius: 5
+                });
+                maxMonths = Math.max(maxMonths, stdData.months);
+            }
+
+            if (ovpData && !ovpData.error && ovpData.balanceHistory) {
+                datasets.push({
+                    label: 'Balance (with Overpayment)',
+                    data: ovpData.balanceHistory,
+                    borderColor: 'rgb(59, 130, 246)', 
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    fill: true,
+                    tension: 0.1,
+                    pointRadius: ovpData.months < 60 ? 3 : 0,
+                    pointHoverRadius: 5
+                });
+                maxMonths = Math.max(maxMonths, ovpData.months);
+            }
+            
+            if(datasets.length === 0) {
+                chartContainer.classList.add('hidden');
+                downloadPdfBtn.disabled = true; 
+                return;
+            }
+
+            const chartLabels = Array.from({ length: maxMonths + 1 }, (_, i) => i);
+            chartTitleEl.textContent = `Mortgage Balance Over Time (${currentCurrencySymbol})`; // Update chart title with currency
+
+            const chartConfig = {
+                type: 'line',
+                data: {
+                    labels: chartLabels, 
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: { 
+                        onComplete: () => { /* console.log('Chart animation complete'); */ }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                color: '#cbd5e1' 
+                            }
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            callbacks: {
+                                title: function(tooltipItems) {
+                                    if (tooltipItems.length > 0) {
+                                        const monthIndex = parseInt(tooltipItems[0].label, 10); 
+                                        if (!isNaN(monthIndex)) {
+                                            const years = Math.floor(monthIndex / 12);
+                                            const monthsInYear = monthIndex % 12;
+                                            if (monthIndex === 0) return "Start";
+                                            return `Year ${years}, Month ${monthsInYear}`;
+                                        }
+                                        return tooltipItems[0].label; 
+                                    }
+                                    return '';
+                                },
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.y !== null) {
+                                        label += formatCurrency(context.parsed.y); // Uses global currentCurrencySymbol
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            display: true,
+                            title: {
+                                display: true,
+                                text: 'Time (Years)', 
+                                color: '#94a3b8' 
+                            },
+                            ticks: {
+                                color: '#94a3b8',
+                                stepSize: 12, 
+                                callback: function(value, index, ticks) {
+                                    if (value % 12 === 0) { 
+                                        return `Year ${value / 12}`;
+                                    }
+                                    return undefined; 
+                                },
+                                autoSkip: true, 
+                                maxRotation: 0
+                            },
+                            grid: {
+                                color: 'rgba(100, 116, 139, 0.2)' 
+                            }
+                        },
+                        y: {
+                            display: true,
+                            title: {
+                                display: true,
+                                text: `Remaining Balance (${currentCurrencySymbol})`, // Dynamic Y-axis title
+                                color: '#94a3b8'
+                            },
+                            ticks: {
+                                color: '#94a3b8',
+                                callback: function(value) {
+                                    return formatCurrency(value); // Uses global currentCurrencySymbol
+                                }
+                            },
+                             grid: {
+                                color: 'rgba(100, 116, 139, 0.2)'
+                            }
+                        }
+                    }
+                }
+            };
+            
+            mortgageChart = new Chart(chartCanvas, chartConfig);
+            chartContainer.classList.remove('hidden');
+            downloadPdfBtn.disabled = false; 
+        }
+        
+        /**
+         * Handles the calculate button click event.
+         */
+        function handleCalculation() {
+            resultsArea.classList.add('hidden');
+            errorDisplay.classList.add('hidden');
+            errorDisplay.textContent = '';
+            pdfErrorDisplay.classList.add('hidden');
+            pdfErrorDisplay.textContent = '';
+            standardResultsDiv.classList.add('hidden');
+            overpaymentResultsDiv.classList.add('hidden');
+            savingsResultsDiv.classList.add('hidden');
+            chartContainer.classList.add('hidden');
+            downloadPdfBtn.disabled = true; 
+
+            if (mortgageChart) {
+                mortgageChart.destroy();
+                mortgageChart = null;
+            }
+
+            // Sanitize inputs and detect currency from balance field
+            const { sanitizedValue: balanceStr, detectedSymbol: symbolFromBalance } = sanitizeAndDetectCurrency(balanceInput.value, true);
+            currentCurrencySymbol = symbolFromBalance || '£'; // Update global symbol, default to £
+
+            const { sanitizedValue: interestRateStr } = sanitizeAndDetectCurrency(interestRateInput.value); 
+            const { sanitizedValue: monthlyPaymentStr } = sanitizeAndDetectCurrency(monthlyPaymentInput.value);
+            const { sanitizedValue: overpaymentStr } = sanitizeAndDetectCurrency(overpaymentInput.value);
+
+            // Update labels to reflect detected currency
+            document.querySelector('label[for="balance"]').textContent = `Remaining Balance (${currentCurrencySymbol})`;
+            document.querySelector('label[for="monthlyPayment"]').textContent = `Current Monthly Payment (${currentCurrencySymbol})`;
+            document.querySelector('label[for="overpayment"]').textContent = `Optional Monthly Overpayment (${currentCurrencySymbol})`;
+
+
+            const balance = parseFloat(balanceStr);
+            const annualRate = parseFloat(interestRateStr); 
+            const monthlyRepayment = parseFloat(monthlyPaymentStr);
+            const monthlyOverpayment = parseFloat(overpaymentStr) || 0; 
+
+            let errors = [];
+            if (isNaN(balance) || balance < 0) { 
+                errors.push("Remaining balance must be a non-negative number.");
+                balanceInput.classList.add('border-red-500');
+            } else {
+                balanceInput.classList.remove('border-red-500');
+            }
+
+            if (isNaN(annualRate) || annualRate < 0) {
+                errors.push("Annual interest rate must be a non-negative number.");
+                interestRateInput.classList.add('border-red-500');
+            } else {
+                interestRateInput.classList.remove('border-red-500');
+            }
+            
+            if (balance > 0 && (isNaN(monthlyRepayment) || monthlyRepayment <= 0)) {
+                errors.push("Monthly payment must be a positive number if there is a balance.");
+                monthlyPaymentInput.classList.add('border-red-500');
+            } else if (balance === 0 && (isNaN(monthlyRepayment) || monthlyRepayment < 0)) { 
+                 if (monthlyPaymentInput.value.trim() !== '' && (isNaN(monthlyRepayment) || monthlyRepayment < 0)) {
+                    errors.push("Monthly payment must be a non-negative number.");
+                    monthlyPaymentInput.classList.add('border-red-500');
+                 } else {
+                    monthlyPaymentInput.classList.remove('border-red-500');
+                 }
+            } else {
+                monthlyPaymentInput.classList.remove('border-red-500');
+            }
+
+
+            if (isNaN(monthlyOverpayment) || monthlyOverpayment < 0) { 
+                errors.push("Monthly overpayment must be a non-negative number.");
+                overpaymentInput.classList.add('border-red-500');
+            } else {
+                 overpaymentInput.classList.remove('border-red-500');
+            }
+
+            if (errors.length > 0) {
+                errorDisplay.innerHTML = errors.join('<br>');
+                errorDisplay.classList.remove('hidden');
+                resultsArea.classList.remove('hidden'); 
+                return;
+            }
+            
+            const effectiveMonthlyRepayment = (balance === 0 && isNaN(monthlyRepayment)) ? 0 : (monthlyRepayment || 0);
+            const stdScenario = calculateMortgageDetails(balance, annualRate, effectiveMonthlyRepayment, 0);
+
+            if (stdScenario.error) {
+                errorDisplay.textContent = `Standard Calculation Error: ${stdScenario.error}`;
+                errorDisplay.classList.remove('hidden');
+                resultsArea.classList.remove('hidden');
+                return;
+            }
+
+            stdPayoffTimeEl.textContent = formatMonthsToYearsMonths(stdScenario.months);
+            stdTotalInterestEl.textContent = formatCurrency(stdScenario.totalInterestPaid);
+            stdTotalPaidEl.textContent = formatCurrency(stdScenario.totalPaid);
+            standardResultsDiv.classList.remove('hidden');
+            resultsArea.classList.remove('hidden');
+
+            let ovpScenario = null;
+            if (monthlyOverpayment > 0 && balance > 0) { 
+                ovpScenario = calculateMortgageDetails(balance, annualRate, effectiveMonthlyRepayment, monthlyOverpayment);
+
+                if (ovpScenario.error) {
+                    errorDisplay.textContent = (errorDisplay.textContent ? errorDisplay.textContent + '<br>' : '') + `Overpayment Calculation Warning: ${ovpScenario.error}`; 
+                    errorDisplay.classList.remove('hidden'); 
+                    overpaymentResultsDiv.classList.add('hidden');
+                    savingsResultsDiv.classList.add('hidden');
+                } else {
+                    ovpPayoffTimeEl.textContent = formatMonthsToYearsMonths(ovpScenario.months);
+                    ovpTotalInterestEl.textContent = formatCurrency(ovpScenario.totalInterestPaid);
+                    ovpTotalPaidEl.textContent = formatCurrency(ovpScenario.totalPaid);
+                    overpaymentResultsDiv.classList.remove('hidden');
+
+                    const timeSavedMonths = stdScenario.months - ovpScenario.months;
+                    const interestSaved = stdScenario.totalInterestPaid - ovpScenario.totalInterestPaid;
+
+                    timeSavedEl.textContent = formatMonthsToYearsMonths(timeSavedMonths);
+                    interestSavedEl.textContent = formatCurrency(interestSaved);
+                    savingsResultsDiv.classList.remove('hidden');
+                }
+            } else {
+                overpaymentResultsDiv.classList.add('hidden');
+                savingsResultsDiv.classList.add('hidden');
+            }
+            
+            if (balance > 0) {
+                updateChart(stdScenario, (monthlyOverpayment > 0 && ovpScenario && !ovpScenario.error) ? ovpScenario : null);
+            } else {
+                chartContainer.classList.add('hidden');
+                chartTitleEl.textContent = `Mortgage Balance Over Time`; // Reset chart title if no balance
+                if (!standardResultsDiv.classList.contains('hidden')) {
+                    downloadPdfBtn.disabled = false;
+                } else {
+                    downloadPdfBtn.disabled = true;
+                }
+            }
+        }
+
+        /**
+         * Handles the PDF download functionality.
+         */
+        async function downloadPDF() {
+            const { jsPDF } = window.jspdf; 
+            if (!appContainer || !html2canvas || !jsPDF) {
+                pdfErrorDisplay.textContent = "PDF generation library not loaded correctly.";
+                pdfErrorDisplay.classList.remove('hidden');
+                console.error("PDF generation dependencies not found.");
+                return;
+            }
+
+            const originalButtonText = downloadPdfBtn.textContent;
+            downloadPdfBtn.textContent = 'Generating PDF...';
+            downloadPdfBtn.disabled = true;
+            pdfErrorDisplay.classList.add('hidden'); 
+
+            try {
+                window.scrollTo(0, 0); 
+                await new Promise(resolve => setTimeout(resolve, 500)); 
+
+                const canvas = await html2canvas(appContainer, {
+                    scale: 2, 
+                    useCORS: true,
+                    logging: false,
+                    backgroundColor: null, 
+                    onclone: (documentCloned) => {
+                        const titleElement = documentCloned.getElementById('pdfExportTitle');
+                        if (titleElement) {
+                            titleElement.style.background = 'none'; 
+                            titleElement.style.webkitBackgroundClip = 'auto';
+                            titleElement.style.backgroundClip = 'auto';
+                            titleElement.style.color = '#A5B4FC'; 
+                            titleElement.style.textShadow = 'none'; 
+                            titleElement.style.setProperty('color', '#A5B4FC', 'important'); 
+                        }
+                        const chartContainerCloned = documentCloned.getElementById('chartContainer');
+                        if (chartContainerCloned && chartContainerCloned.classList.contains('hidden')) {
+                            chartContainerCloned.style.display = 'none';
+                        }
+                        // Ensure chart title in PDF reflects the current currency
+                        const chartTitleCloned = documentCloned.getElementById('chartTitle');
+                        if (chartTitleCloned) {
+                            chartTitleCloned.textContent = `Mortgage Balance Over Time (${currentCurrencySymbol})`;
+                        }
+                    }
+                });
+
+                const imgData = canvas.toDataURL('image/png');
+                const pdf = new jsPDF({
+                    orientation: 'p',
+                    unit: 'mm',
+                    format: 'a4'
+                });
+
+                const imgProps = pdf.getImageProperties(imgData);
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                const pdfHeight = pdf.internal.pageSize.getHeight();
+                
+                let newImgWidth = imgProps.width;
+                let newImgHeight = imgProps.height;
+                const margin = 10; 
+
+                const availableWidth = pdfWidth - 2 * margin;
+                const availableHeight = pdfHeight - 2 * margin;
+
+                if (newImgWidth > availableWidth) {
+                    const ratio = availableWidth / newImgWidth;
+                    newImgWidth = availableWidth;
+                    newImgHeight *= ratio;
+                }
+                if (newImgHeight > availableHeight) {
+                     const ratio = availableHeight / newImgHeight;
+                    newImgHeight = availableHeight;
+                    newImgWidth *= ratio;
+                }
+                
+                const x = margin + (availableWidth - newImgWidth) / 2; 
+                const y = margin + (availableHeight - newImgHeight) / 2; 
+
+
+                pdf.addImage(imgData, 'PNG', x, y, newImgWidth, newImgHeight);
+                pdf.save('mortgage-payoff-summary.pdf');
+
+            } catch (err) {
+                console.error("Error generating PDF:", err);
+                pdfErrorDisplay.textContent = "Could not generate PDF. Error: " + err.message;
+                pdfErrorDisplay.classList.remove('hidden');
+            } finally {
+                downloadPdfBtn.textContent = originalButtonText;
+                if (!standardResultsDiv.classList.contains('hidden') || !chartContainer.classList.contains('hidden')) {
+                    downloadPdfBtn.disabled = false;
+                } else {
+                    downloadPdfBtn.disabled = true;
+                }
+            }
+        }
+
+        // Event Listeners
+        calculateBtn.addEventListener('click', handleCalculation);
+        downloadPdfBtn.addEventListener('click', downloadPDF);
+
+    </script>
+</body>
+</html>
